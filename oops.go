@@ -18,7 +18,7 @@ type Oops struct {
 	WaitTime    time.Duration // Suggested wait time // 建议等待时间
 }
 
-// IsRetryable checks if a retry is recommended
+// IsRetryable checks if retrying is recommended
 // IsRetryable 检查是否建议重试
 func (o *Oops) IsRetryable() bool {
 	return o.Retryable
@@ -27,15 +27,13 @@ func (o *Oops) IsRetryable() bool {
 // NewOops creates an Oops with the specified params
 // NewOops 使用指定的参数创建一个 Oops
 func NewOops(kind Kind, statusCode int, cause error, retryable bool) *Oops {
+	must.Nice(kind)
 	must.In(kind, []Kind{KindUnknown, KindNetwork, KindHttp, KindParse, KindBlock, KindBusiness})
-	if cause == nil {
-		panic("NewOops requires a cause argument") // cause 不能为空
-	}
 	return &Oops{
 		Kind:        kind,
 		StatusCode:  statusCode,
 		ContentType: "",
-		Cause:       cause,
+		Cause:       must.Cause(cause),
 		Retryable:   retryable,
 		WaitTime:    0,
 	}

@@ -1,3 +1,8 @@
+// Package utils provides utilities supporting the restyoops package
+// Implements generic support functions used across different modules
+//
+// utils 提供支持 restyoops 包的工具
+// 实现在不同模块间使用的泛型辅助函数
 package utils
 
 import "errors"

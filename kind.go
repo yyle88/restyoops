@@ -1,6 +1,6 @@
 // Package restyoops: Structured HTTP operation fault classification with retryable semantics
 // Oops! See if restyv2 response is retryable
-// Provides Kind enum, Oops struct, and Detect function to classify HTTP response outcomes
+// Provides Kind enum, Oops struct, and Detect function to categorize HTTP response outcomes
 //
 // restyoops: 结构化 HTTP 操作故障分类，带有可重试语义
 // Oops! 检查 restyv2 响应是否可重试
@@ -19,16 +19,16 @@ const (
 	// KindUnknown 表示未分类的问题
 	KindUnknown Kind = "UNKNOWN"
 
-	// KindNetwork indicates network-level issues like timeout, DNS, TCP, TLS
+	// KindNetwork indicates network issues like timeout, DNS, TCP, TLS
 	// Outcomes: connection reset, deadline exceeded, no such host
-	// KindNetwork 表示网络层问题，如超时、DNS、TCP、TLS
+	// KindNetwork 表示网络问题，如超时、DNS、TCP、TLS
 	// 结果：连接重置、截止时间超时、无此主机
 	KindNetwork Kind = "NETWORK"
 
 	// KindHttp indicates HTTP status code issues (4xx/5xx)
-	// Outcomes: 429 rate limit, 500 internal, 502/503/504 gateway issues
+	// Outcomes: 429 rate limit, 500 issues, 502/503/504 upstream issues
 	// KindHttp 表示 HTTP 状态码问题（4xx/5xx）
-	// 结果：429 限流、500 内部问题、502/503/504 网关问题
+	// 结果：429 限流、500 问题、502/503/504 上游问题
 	KindHttp Kind = "HTTP"
 
 	// KindParse indicates response parsing issues

@@ -45,13 +45,13 @@ func Detect(cfg *Config, resp *resty.Response, respCause error) *Oops {
 	return nil
 }
 
-// detectNetworkOops classifies network-level issues
-// detectNetworkOops 分类网络层问题
+// detectNetworkOops classifies network issues
+// detectNetworkOops 分类网络问题
 func detectNetworkOops(cfg *Config, respCause error) *Oops {
 	var kind Kind
 	var defaultRetryable bool
 
-	// Check specific types first (more specific before general)
+	// Check specific types first (more specific before common)
 	// 先检查具体类型（具体的在通用的前面）
 	if errors.Is(respCause, context.DeadlineExceeded) || errors.Is(respCause, context.Canceled) {
 		kind = KindNetwork
