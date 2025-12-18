@@ -19,10 +19,6 @@ const (
 	// KindUnknown 表示未分类的问题
 	KindUnknown Kind = "UNKNOWN"
 
-	// KindSuccess indicates operation success
-	// KindSuccess 表示操作成功
-	KindSuccess Kind = "SUCCESS"
-
 	// KindNetwork indicates network-level issues like timeout, DNS, TCP, TLS
 	// Outcomes: connection reset, deadline exceeded, no such host
 	// KindNetwork 表示网络层问题，如超时、DNS、TCP、TLS
@@ -64,12 +60,6 @@ func (k Kind) String() string {
 // IsUnknown 检查 Kind 是否表示未知问题
 func (k Kind) IsUnknown() bool {
 	return k == KindUnknown
-}
-
-// IsSuccess checks if Kind indicates success
-// IsSuccess 检查 Kind 是否表示成功
-func (k Kind) IsSuccess() bool {
-	return k == KindSuccess
 }
 
 // IsNetwork checks if Kind indicates network issues

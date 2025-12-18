@@ -40,14 +40,9 @@ func Detect(cfg *Config, resp *resty.Response, respCause error) *Oops {
 		return detectDefaultHttpOops(cfg, statusCode, contentType)
 	}
 
-	// Success
-	// 成功
-	return &Oops{
-		Kind:        KindSuccess,
-		StatusCode:  statusCode,
-		Retryable:   false,
-		ContentType: contentType,
-	}
+	// Success - return nil (no oops means no problem)
+	// 成功 - 返回 nil（没有 oops 表示没问题）
+	return nil
 }
 
 // detectNetworkOops classifies network-level issues
@@ -79,12 +74,9 @@ func detectNetworkOops(cfg *Config, respCause error) *Oops {
 	}
 
 	retryable, waitTime := applyOption(cfg, kind, 0, defaultRetryable)
-	return &Oops{
-		Kind:      kind,
-		Cause:     respCause,
-		Retryable: retryable,
-		WaitTime:  waitTime,
-	}
+	oops := NewOops(kind, 0, respCause, retryable)
+	oops.WithWaitTime(waitTime)
+	return oops
 }
 
 // detectDefaultHttpOops classifies HTTP status code issues
@@ -107,13 +99,10 @@ func detectDefaultHttpOops(cfg *Config, statusCode int, contentType string) *Oop
 	}
 
 	retryable, waitTime := applyOption(cfg, KindHttp, statusCode, defaultRetryable)
-	return &Oops{
-		Kind:        KindHttp,
-		StatusCode:  statusCode,
-		Retryable:   retryable,
-		WaitTime:    waitTime,
-		ContentType: contentType,
-	}
+	oops := NewOops(KindHttp, statusCode, errors.New(string(KindHttp)), retryable)
+	oops.WithWaitTime(waitTime)
+	oops.WithContentType(contentType)
+	return oops
 }
 
 // applyOption applies config overrides and returns (retryable, waitTime)

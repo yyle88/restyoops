@@ -23,11 +23,11 @@ Structured HTTP operation fault classification with retryable semantics, designe
 
 ## Main Features
 
-🎯 **Fault Classification**: Classify HTTP response outcomes into actionable categories
+🎯 **Fault Classification**: Categorize HTTP response outcomes into actionable categories
 ⚡ **Retryable Detection**: Determine if an operation is retryable with sensible defaults
-🔄 **Configurable Behavior**: Override retry behavior per status code or kind
-🔍 **Content Checks**: Custom content checks handling special cases (captcha, WAF, business codes)
-⏱️ **Wait Time**: Suggested wait time before retry
+🔄 **Configurable Settings**: Customize settings based on status code and kind
+🔍 **Content Checks**: Custom content checks handling unique cases (captcha, WAF, business codes)
+⏱️ **Wait Time**: Suggested wait duration before retrying
 
 ## Installation
 
@@ -48,34 +48,54 @@ import (
 
 func main() {
     client := resty.New()
-    resp, err := client.R().Get("https://api.example.com/data")
 
-    oops := restyoops.Detect(restyoops.NewConfig(), resp, err)
+    detective := restyoops.NewDetective(restyoops.NewConfig())
+    resp, oops := detective.Detect(client.R().Get("https://api.example.com/data"))
 
-    if oops.IsSuccess() {
-        fmt.Println("Request succeeded!")
+    if oops != nil {
+        fmt.Printf("Kind: %s, Retryable: %v\n", oops.Kind, oops.Retryable)
+        if oops.IsRetryable() {
+            fmt.Printf("Wait before retrying: %v\n", oops.WaitTime)
+        }
         return
     }
 
-    fmt.Printf("Kind: %s, Retryable: %v\n", oops.Kind, oops.Retryable)
-
-    if oops.IsRetryable() {
-        fmt.Printf("Wait before retrying: %v\n", oops.WaitTime)
-    }
+    fmt.Println("Request success!")
+    fmt.Println("Response:", string(resp.Body()))
 }
 ```
+
+## Detective (Recommended)
+
+`Detective` wraps config and provides a convenient API that accepts resty's values without intermediate steps:
+
+```go
+type OopsIssue = Oops
+
+detective := restyoops.NewDetective(restyoops.NewConfig())
+resp, oops := detective.Detect(client.R().Get(url))  // No need: resp, err := ...; then Detect(..., resp, err)
+if oops != nil {
+    // handle issue
+    return
+}
+// success
+data := resp.Body()
+```
+
+**Advantage**: Avoids the `resp, err := client.R().Get(url)` then `Detect(cfg, resp, err)` pattern.
 
 ## Kind Classification
 
 | Kind           | Description                              | Default Retryable |
 | -------------- | ---------------------------------------- | ----------------- |
-| `KindSuccess`  | Operation succeeded                      | false             |
 | `KindNetwork`  | Network issues (timeout, DNS, TCP, TLS)  | true              |
 | `KindHttp`     | HTTP 4xx/5xx status codes                | varies            |
 | `KindParse`    | Response parsing failed                  | false             |
 | `KindBlock`    | Request blocked (captcha, WAF)           | false             |
 | `KindBusiness` | Business logic issue (HTTP 200, code!=0) | false             |
 | `KindUnknown`  | Unclassified issues                      | false             |
+
+**Note**: Success returns `nil` (no oops means no problem).
 
 ## Default HTTP Status Retryable
 
@@ -103,13 +123,13 @@ func main() {
 When detecting, configurations are applied in the following sequence (highest to lowest):
 
 1. **ContentChecks** - Custom content check functions (checked first)
-2. **StatusOptions** - Per status code configuration
-3. **KindOptions** - Per kind configuration
+2. **StatusOptions** - Status code specific configuration
+3. **KindOptions** - Kind specific configuration
 4. **Default** - Built-in default values
 
-If a higher precedence config matches, lower ones are skipped.
+When a high-precedence config matches, others below it are skipped.
 
-### Override Status Code Behavior
+### Customize Status Code Settings
 
 ```go
 cfg := restyoops.NewConfig().
@@ -119,7 +139,7 @@ cfg := restyoops.NewConfig().
 oops := restyoops.Detect(cfg, resp, err)
 ```
 
-### Override Kind Behavior
+### Customize Kind Settings
 
 ```go
 cfg := restyoops.NewConfig().
@@ -134,7 +154,7 @@ oops := restyoops.Detect(cfg, resp, err)
 cfg := restyoops.NewConfig().
     WithContentCheck(200, func(contentType string, content []byte) *restyoops.Oops {
         if bytes.Contains(content, []byte("captcha")) {
-            return restyoops.NewOops(restyoops.KindBlock, 200, true, nil)
+            return restyoops.NewOops(restyoops.KindBlock, 200, errors.New("CAPTCHA DETECTED"), true).WithWaitTime(5*time.Second)
         }
         return nil // pass, continue default detection
     })
@@ -157,11 +177,24 @@ oops := restyoops.Detect(cfg, resp, err)
 type Oops struct {
     Kind        Kind          // Classification
     StatusCode  int           // HTTP status code
+    ContentType string        // Response Content-Type
+    Cause       error         // Wrapped cause (never nil)
     Retryable   bool          // Can be resolved via retries
     WaitTime    time.Duration // Suggested wait time
-    Cause       error         // Wrapped cause (when network issues)
-    ContentType string        // Response Content-Type
 }
+```
+
+## Detect Function (Basic API)
+
+```go
+func Detect(cfg *Config, resp *resty.Response, respCause error) *Oops
+```
+
+Usage:
+
+```go
+resp, err := client.R().Get(url)
+oops := restyoops.Detect(restyoops.NewConfig(), resp, err)
 ```
 
 ---

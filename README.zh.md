@@ -25,7 +25,7 @@ Oops! 检查 restyv2 响应是否可重试。
 
 🎯 **故障分类**: 将 HTTP 响应结果分类为可操作的类别
 ⚡ **可重试检测**: 使用合理的默认值判断操作是否可重试
-🔄 **可配置行为**: 按状态码或类型覆盖重试行为
+🔄 **可配置设置**: 按状态码和类型自定义设置
 🔍 **内容检查**: 自定义内容检查，处理特殊情况（验证码、WAF、业务码）
 ⏱️ **等待时间**: 重试前的建议等待时间
 
@@ -48,34 +48,54 @@ import (
 
 func main() {
     client := resty.New()
-    resp, err := client.R().Get("https://api.example.com/data")
 
-    oops := restyoops.Detect(restyoops.NewConfig(), resp, err)
+    detective := restyoops.NewDetective(restyoops.NewConfig())
+    resp, oops := detective.Detect(client.R().Get("https://api.example.com/data"))
 
-    if oops.IsSuccess() {
-        fmt.Println("请求成功！")
+    if oops != nil {
+        fmt.Printf("类型: %s, 可重试: %v\n", oops.Kind, oops.Retryable)
+        if oops.IsRetryable() {
+            fmt.Printf("重试前等待: %v\n", oops.WaitTime)
+        }
         return
     }
 
-    fmt.Printf("类型: %s, 可重试: %v\n", oops.Kind, oops.Retryable)
-
-    if oops.IsRetryable() {
-        fmt.Printf("重试前等待: %v\n", oops.WaitTime)
-    }
+    fmt.Println("请求成功！")
+    fmt.Println("响应:", string(resp.Body()))
 }
 ```
+
+## Detective（推荐）
+
+`Detective` 封装配置并提供便捷的 API，可直接接受 resty 的返回值：
+
+```go
+type OopsIssue = Oops
+
+detective := restyoops.NewDetective(restyoops.NewConfig())
+resp, oops := detective.Detect(client.R().Get(url))  // 无需: resp, err := ...; 再 Detect(..., resp, err)
+if oops != nil {
+    // 处理问题
+    return
+}
+// 成功
+data := resp.Body()
+```
+
+**优势**: 避免先 `resp, err := client.R().Get(url)` 再 `Detect(cfg, resp, err)` 的模式。
 
 ## Kind 分类
 
 | Kind           | 描述                              | 默认可重试 |
 | -------------- | --------------------------------- | ---------- |
-| `KindSuccess`  | 操作成功                          | false      |
 | `KindNetwork`  | 网络问题（超时、DNS、TCP、TLS）   | true       |
 | `KindHttp`     | HTTP 4xx/5xx 状态码               | 取决于状态 |
 | `KindParse`    | 响应解析失败                      | false      |
 | `KindBlock`    | 请求被阻止（验证码、WAF）         | false      |
 | `KindBusiness` | 业务逻辑问题（HTTP 200，code!=0） | false      |
 | `KindUnknown`  | 未分类的问题                      | false      |
+
+**注意**: 当成功时返回 `nil`（没有 oops 表示没问题）。
 
 ## 默认 HTTP 状态码可重试
 
@@ -109,7 +129,7 @@ func main() {
 
 如果高优先级配置匹配，则跳过低优先级的配置。
 
-### 覆盖状态码行为
+### 自定义状态码设置
 
 ```go
 cfg := restyoops.NewConfig().
@@ -119,7 +139,7 @@ cfg := restyoops.NewConfig().
 oops := restyoops.Detect(cfg, resp, err)
 ```
 
-### 覆盖 Kind 行为
+### 自定义 Kind 设置
 
 ```go
 cfg := restyoops.NewConfig().
@@ -134,7 +154,7 @@ oops := restyoops.Detect(cfg, resp, err)
 cfg := restyoops.NewConfig().
     WithContentCheck(200, func(contentType string, content []byte) *restyoops.Oops {
         if bytes.Contains(content, []byte("captcha")) {
-            return restyoops.NewOops(restyoops.KindBlock, 200, true, nil)
+            return restyoops.NewOops(restyoops.KindBlock, 200, errors.New("CAPTCHA DETECTED"), true).WithWaitTime(5*time.Second)
         }
         return nil // 通过，继续默认检测
     })
@@ -157,11 +177,24 @@ oops := restyoops.Detect(cfg, resp, err)
 type Oops struct {
     Kind        Kind          // 分类
     StatusCode  int           // HTTP 状态码
+    ContentType string        // 响应 Content-Type
+    Cause       error         // 被包装的原因（不为空）
     Retryable   bool          // 是否可通过重试解决
     WaitTime    time.Duration // 建议等待时间
-    Cause       error         // 被包装的原因（用于网络问题）
-    ContentType string        // 响应 Content-Type
 }
+```
+
+## Detect 函数（基础 API）
+
+```go
+func Detect(cfg *Config, resp *resty.Response, respCause error) *Oops
+```
+
+用法:
+
+```go
+resp, err := client.R().Get(url)
+oops := restyoops.Detect(restyoops.NewConfig(), resp, err)
 ```
 
 ---
